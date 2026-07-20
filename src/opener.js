@@ -112,35 +112,41 @@ function stripHash(u) {
 	}
 }
 
-// Find an already-open tab for this URL within the same container.
-async function findExistingTab(container, params) {
-	let tabs = await browser.tabs.query({ cookieStoreId: container.cookieStoreId })
-	let wanted = stripHash(params.url)
-
-	return tabs.find(t => t.url && stripHash(t.url) === wanted)
-}
-
 async function newTab(container, params) {
-	let browserInfo = await browser.runtime.getBrowserInfo()
-	let currentTab = await browser.tabs.getCurrent()
-
 	// With reuse=true, focus a matching tab in this container instead of
 	// opening a duplicate. Useful for OS-level launchers (dock icons, shortcuts)
 	// that fire the same URL on every activation.
+	//
+	// This path is kept as short as possible: the opener page is a visible tab
+	// until it closes itself, so every await here is perceptible as a flicker.
+	// The two lookups are issued concurrently, and getBrowserInfo() is deferred
+	// to the create path below, where it is actually needed.
 	if (params.reuse) {
-		let existing = await findExistingTab(container, params)
+		let [currentTab, tabs] = await Promise.all([
+			browser.tabs.getCurrent(),
+			browser.tabs.query({ cookieStoreId: container.cookieStoreId }),
+		])
+
+		let wanted = stripHash(params.url)
+		let existing = tabs.find(t => t.url && stripHash(t.url) === wanted)
 
 		if (existing && existing.id !== currentTab.id) {
+			// Focus first, then drop the opener tab, so focus never lands back
+			// on a tab that is about to disappear.
 			await browser.tabs.update(existing.id, { active: true })
 
+			let done = [browser.tabs.remove(currentTab.id)]
 			if (existing.windowId !== undefined) {
-				await browser.windows.update(existing.windowId, { focused: true })
+				done.push(browser.windows.update(existing.windowId, { focused: true }))
 			}
+			await Promise.all(done)
 
-			await browser.tabs.remove(currentTab.id)
 			return
 		}
 	}
+
+	let browserInfo = await browser.runtime.getBrowserInfo()
+	let currentTab = await browser.tabs.getCurrent()
 
 	let createTabParams = {
 		cookieStoreId: container.cookieStoreId,
