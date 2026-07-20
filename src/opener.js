@@ -131,9 +131,18 @@ async function newTab(container, params) {
 		let existing = tabs.find(t => t.url && stripHash(t.url) === wanted)
 
 		if (existing && existing.id !== currentTab.id) {
+			// Apply `pinned` on reuse too, so the parameter is idempotent: a
+			// launcher asking for a pinned tab gets one whether or not the tab
+			// already existed. Only sent when it would actually change, to
+			// avoid a needless tab-strip reflow on every activation.
+			let updateProps = { active: true }
+			if (params.pinned !== undefined && params.pinned !== existing.pinned) {
+				updateProps.pinned = params.pinned
+			}
+
 			// Focus first, then drop the opener tab, so focus never lands back
 			// on a tab that is about to disappear.
-			await browser.tabs.update(existing.id, { active: true })
+			await browser.tabs.update(existing.id, updateProps)
 
 			let done = [browser.tabs.remove(currentTab.id)]
 			if (existing.windowId !== undefined) {
