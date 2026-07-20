@@ -11,11 +11,20 @@
     if (!icon) return   // not a configured container
 
     const MARK = 'data-ouic-container-icon'   // marks our own <link>
+    // Firefox loads favicons asynchronously. Removing the page's <link> does not
+    // cancel a fetch already in flight, so its icon still lands and paints —
+    // and since our own <link> is untouched, nothing re-triggers ours. These
+    // re-assert after the page's in-flight load has had time to complete.
+    const REASSERT_MS = [250, 1000]
     const started = performance.now()
     let observer = null
     let overwrites = 0
+    let pending = []
 
-    function apply() {
+    // force=true reinstalls our <link> as a brand new element even when the page
+    // has not touched anything — that is the only way to make Firefox re-fetch,
+    // and it is the whole point of the delayed re-asserts.
+    function apply(force) {
         let head = document.head
         if (!head) return   // document_start: wait for the observer to see it appear
 
@@ -38,6 +47,14 @@
             }
 
             let ours = head.querySelector(`link[${MARK}]`)
+            // When the page has just set its own icon, replace our <link> with a
+            // brand new element rather than reusing it. Re-appending an existing
+            // node with an unchanged href does not make Firefox re-fetch, so the
+            // page's in-flight icon would be the last one to land and would win.
+            if (ours && (theirs.length || force)) {
+                ours.remove()
+                ours = null
+            }
             if (!ours) {
                 ours = document.createElement('link')
                 ours.setAttribute('rel', 'icon')
@@ -46,6 +63,11 @@
             if (ours.getAttribute('href') !== icon) ours.setAttribute('href', icon)
             // Keep ours last so it wins on document order regardless.
             if (ours !== head.lastElementChild) head.appendChild(ours)
+
+            if (theirs.length) {
+                for (let t of pending) clearTimeout(t)
+                pending = REASSERT_MS.map(ms => setTimeout(() => apply(true), ms))
+            }
         } finally {
             if (observer) {
                 // Watch the whole document, not just head: a page that replaces
@@ -60,7 +82,10 @@
     }
 
     function start() {
-        observer = new MutationObserver(apply)
+        // Wrapped, not passed directly: the observer hands its callback an array
+        // of records, which is truthy and would silently turn every mutation
+        // into a forced reinstall.
+        observer = new MutationObserver(() => apply())
         apply()
     }
 
