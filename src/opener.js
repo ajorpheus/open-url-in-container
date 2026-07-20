@@ -23,6 +23,7 @@ const schema = {
 	index: [integer],
 	pinned: [boolean],
 	openInReaderMode: [boolean],
+	reuse: [boolean],
     
     // global validators
     __validators: [atLeastOneRequired(['id', 'name'])],
@@ -99,9 +100,47 @@ async function createContainer(params) {
 	})
 }
 
+// Strip the fragment so single-page apps that rewrite location.hash after
+// load still match the URL they were originally opened with.
+function stripHash(u) {
+	try {
+		let parsed = new URL(u)
+		parsed.hash = ''
+		return parsed.toString()
+	} catch (e) {
+		return u
+	}
+}
+
+// Find an already-open tab for this URL within the same container.
+async function findExistingTab(container, params) {
+	let tabs = await browser.tabs.query({ cookieStoreId: container.cookieStoreId })
+	let wanted = stripHash(params.url)
+
+	return tabs.find(t => t.url && stripHash(t.url) === wanted)
+}
+
 async function newTab(container, params) {
 	let browserInfo = await browser.runtime.getBrowserInfo()
 	let currentTab = await browser.tabs.getCurrent()
+
+	// With reuse=true, focus a matching tab in this container instead of
+	// opening a duplicate. Useful for OS-level launchers (dock icons, shortcuts)
+	// that fire the same URL on every activation.
+	if (params.reuse) {
+		let existing = await findExistingTab(container, params)
+
+		if (existing && existing.id !== currentTab.id) {
+			await browser.tabs.update(existing.id, { active: true })
+
+			if (existing.windowId !== undefined) {
+				await browser.windows.update(existing.windowId, { focused: true })
+			}
+
+			await browser.tabs.remove(currentTab.id)
+			return
+		}
+	}
 
 	let createTabParams = {
 		cookieStoreId: container.cookieStoreId,
