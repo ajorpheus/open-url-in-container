@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+     License, v. 2.0. If a copy of the MPL was not distributed with this
+     file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Open external links in a container — Options</title>
+    <style>
+        :root { color-scheme: light dark; }
+        body {
+            font: message-box; font-size: 14px;
+            margin: 0; padding: 1.5rem;
+            max-width: 46rem;
+        }
+        h1 { font-size: 1.25rem; margin: 0 0 .25rem; }
+        .intro { opacity: .75; margin: 0 0 1.5rem; line-height: 1.5; }
+        table { border-collapse: collapse; width: 100%; }
+        th {
+            text-align: left; font-weight: 600; font-size: .8rem;
+            text-transform: uppercase; letter-spacing: .04em; opacity: .6;
+            padding: 0 .6rem .4rem; border-bottom: 1px solid rgba(128,128,128,.35);
+        }
+        td { padding: .6rem; border-bottom: 1px solid rgba(128,128,128,.18); vertical-align: middle; }
+        .name { display: flex; align-items: center; gap: .5rem; white-space: nowrap; }
+        .swatch { width: .7rem; height: .7rem; border-radius: 50%; flex: none; }
+        .preview {
+            width: 32px; height: 32px; object-fit: contain;
+            border-radius: 4px; background: rgba(128,128,128,.12);
+        }
+        .preview.empty { opacity: .35; }
+        input[type=text] {
+            width: 100%; min-width: 12rem; box-sizing: border-box;
+            padding: .35rem .5rem; font: inherit; font-size: .9em;
+            border: 1px solid rgba(128,128,128,.5); border-radius: 4px;
+            background: transparent; color: inherit;
+        }
+        .actions { display: flex; gap: .35rem; white-space: nowrap; }
+        button { font: inherit; padding: .35rem .7rem; border-radius: 4px;
+                 border: 1px solid rgba(128,128,128,.5); background: transparent;
+                 color: inherit; cursor: pointer; }
+        button:hover { background: rgba(128,128,128,.15); }
+        button.primary { border-color: transparent; background: #0060df; color: #fff; }
+        button.primary:hover { background: #0250bb; }
+        input[type=file] { display: none; }
+        .status { min-height: 1.2rem; margin-top: 1rem; font-size: .9em; }
+        .status.ok { color: #017a40; }
+        .status.err { color: #c50042; }
+        @media (prefers-color-scheme: dark) {
+            .status.ok { color: #4bc26b; }
+            .status.err { color: #ff6a8a; }
+        }
+        .empty-note { opacity: .7; font-style: italic; }
+    </style>
+</head>
+<body>
+    <h1>Container tab icons</h1>
+    <p class="intro">
+        Give a container its own favicon, so two tabs of the same site are told
+        apart at a glance. Setting an icon asks for permission to that one site
+        — the extension needs to run in the page to replace its favicon, and it
+        requests nothing until you configure a container here.
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Container</th>
+                <th>Icon</th>
+                <th>Apply on</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+    </table>
+
+    <div class="status" id="status"></div>
+
+    <script src="options.js"></script>
+</body>
+</html>

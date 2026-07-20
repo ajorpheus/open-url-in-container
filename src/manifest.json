@@ -14,9 +14,20 @@
             "uriTemplate": "/opener.html#%s"
         }
     ],
+    "background": {
+        "scripts": ["background.js"]
+    },
+    "options_ui": {
+        "page": "options.html",
+        "open_in_tab": true
+    },
     "permissions": [
         "contextualIdentities",
         "cookies",
-        "tabs"
+        "tabs",
+        "storage"
+    ],
+    "optional_permissions": [
+        "<all_urls>"
     ]
 }
