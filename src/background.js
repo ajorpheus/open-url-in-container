@@ -48,7 +48,10 @@ async function syncRegistrations() {
             registered.set(pattern, await browser.contentScripts.register({
                 matches: [pattern],
                 js: [{ file: '/favicon.js' }],
-                runAt: 'document_idle',
+                // document_start, so the icon is in place before the page's own
+                // scripts boot and set theirs. At document_idle the app has
+                // already painted its favicon and the swap is visible.
+                runAt: 'document_start',
                 allFrames: false,
             }))
         } catch (e) {
