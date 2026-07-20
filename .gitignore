@@ -1,4 +1,6 @@
 /node_modules
 /web-ext-artifacts
-# local unsigned builds
-*.xpi
+# Broken master-based (v2.0.0alpha) build — requires signed URLs and dies with
+# "TypeError: can't access property length, hex is undefined". Kept on disk as a
+# record of the dead end, but never install it and never publish it.
+/open-url-in-container-reuse.xpi
