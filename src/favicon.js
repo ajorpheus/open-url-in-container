@@ -7,6 +7,14 @@
 // Registered dynamically by background.js, only for origins the user granted.
 
 ;(async () => {
+    // background.js both registers this script and executeScript()s it into
+    // already-open tabs, so the same document can receive it twice. Two
+    // instances would each hold an observer and force-reinstall the shared
+    // <link> against each other. Content scripts from one extension share a
+    // sandbox global per document, so a flag here is enough.
+    if (window.__ouicFaviconActive) return
+    window.__ouicFaviconActive = true
+
     let icon = await browser.runtime.sendMessage({ type: 'getContainerIcon' })
     if (!icon) return   // not a configured container
 

@@ -41,9 +41,18 @@ async function syncRegistrations() {
         registered.delete(pattern)
     }
 
+    let missed = []
     for (let pattern of wanted) {
         if (registered.has(pattern)) continue
-        if (!await browser.permissions.contains({ origins: [pattern] })) continue
+        if (!await browser.permissions.contains({ origins: [pattern] })) {
+            // Permission state can read back empty very early in startup, before
+            // it has been restored from disk. Treat that as "try again", not as
+            // "the user revoked it" — otherwise a cold start silently ends with
+            // nothing registered and only a save from the options page (which
+            // re-fires this via storage.onChanged) ever recovers it.
+            missed.push(pattern)
+            continue
+        }
         try {
             registered.set(pattern, await browser.contentScripts.register({
                 matches: [pattern],
@@ -54,10 +63,40 @@ async function syncRegistrations() {
                 runAt: 'document_start',
                 allFrames: false,
             }))
+            injectIntoOpenTabs(pattern)
         } catch (e) {
             console.error(`open-url-in-container: could not register ${pattern}:`, e)
+            missed.push(pattern)
         }
     }
+    return missed
+}
+
+// contentScripts.register() only affects FUTURE navigations. Tabs that were
+// already loaded — restored pinned tabs, or anything open when the icon was
+// first configured — would keep the page's own favicon until manually
+// reloaded, so inject into them directly.
+async function injectIntoOpenTabs(pattern) {
+    let tabs = []
+    try { tabs = await browser.tabs.query({ url: pattern }) } catch (e) { return }
+    for (let tab of tabs) {
+        if (tab.discarded) continue
+        browser.tabs.executeScript(tab.id, { file: '/favicon.js', runAt: 'document_idle' })
+            .catch(() => { /* privileged page, or navigating; the registration covers it */ })
+    }
+}
+
+// Retry a cold start until everything configured is actually registered.
+// Bounded, and each pass is idempotent.
+async function syncWithRetry(attempt = 0) {
+    let missed = await syncRegistrations()
+    if (!missed.length || attempt >= 5) {
+        if (missed.length) {
+            console.error('open-url-in-container: gave up registering', missed)
+        }
+        return
+    }
+    setTimeout(() => syncWithRetry(attempt + 1), 250 * Math.pow(2, attempt))
 }
 
 // The content script cannot see its own container, so it asks. sender.tab is
@@ -71,9 +110,16 @@ browser.runtime.onMessage.addListener((msg, sender) => {
 })
 
 browser.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.containerIcons) syncRegistrations()
+    if (area === 'local' && changes.containerIcons) syncWithRetry()
 })
-browser.permissions.onAdded.addListener(syncRegistrations)
-browser.permissions.onRemoved.addListener(syncRegistrations)
+browser.permissions.onAdded.addListener(() => syncWithRetry())
+browser.permissions.onRemoved.addListener(() => syncWithRetry())
 
-syncRegistrations()
+// Script load alone is not enough. onStartup fires on a cold browser start,
+// where the load-time pass can lose the race against permission state being
+// read back from disk; onInstalled covers install and upgrade, where the
+// previous version's registrations are already gone.
+browser.runtime.onStartup.addListener(() => syncWithRetry())
+browser.runtime.onInstalled.addListener(() => syncWithRetry())
+
+syncWithRetry()
